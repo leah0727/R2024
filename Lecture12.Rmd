@@ -1,0 +1,494 @@
+---
+title: "Lecture12. Basic Analysis II - Proportion comparison"
+output:
+    html_document:
+        theme: simplex
+        highlight: haddock
+        toc: true
+        toc_depth: 5
+        toc_float: true
+        number_sections: false
+draft: false
+editor_options:
+    chunk_output_type: console
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=5, fig.height=3)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+```
+
+<br>
+
+## **평균 비교 (continued)**
+
+<br>
+
+#### **K-independent samples (K≥3)**
+
+<br>
+
+* 검정 방법
+    * 모수적 방법 : one-way ANOVA
+    * 비모수적 방법 : Kruskal-Wallis test
+
+<br>
+
+
+* **One-way ANOVA**
+    * 정규성 & 등분산성 여부 결정 필요
+    * H0 : mu1 = mu2 = ... = muk = 0
+    * H1 : 적어도 하나이상의 muj는 다르다
+    
+    <br>
+    
+    ![](image/p020.png){width=80%}
+    
+    <br>
+    
+    ![](image/p021.png){width=80%}
+    
+    <br>
+    
+    ![](image/p022.png){width=80%}
+    
+    <br>
+    
+    ![](image/p023.png){width=80%}
+    
+    
+<br>
+<br>
+
+* `aov(formula, data)`
+    * formula : (종속변수) ~ (그룹변수) 형태로 지정 
+    * data : 종속변수와 그룹변수가 들어있는 데이터셋명. R 환경에 불러져 있는 종속변수와 그룹변수 벡터를 이용하는 경우 지정 불필요
+    
+<br>
+
+* `oneway.test(formula, data, mu=0, alternative="two.sided", conf.level=0.95, var.equal=F)`
+    * formula : (종속변수) ~ (그룹변수) 형태로 지정 
+    * data : 종속변수와 그룹변수가 들어있는 데이터셋명. R 환경에 불러져 있는 종속변수와 그룹변수 벡터를 이용하는 경우 지정 불필요
+    * mu : 비교하고자 하는 모평균의 차이
+    * alternative : 대립가설 형태 ("two.sided", "less", "greater")
+    * conf.level : 신뢰구간의 신뢰수준
+    * var.equal : 등분산 가정 여부. TRUE이면 등분산가정, FALSE이면 이분산가정
+
+<br>
+    
+* **사후분석**
+    * 분산분석 결과 귀무가설이 기각되어 적어도 한 집단에서 평균의 차이가 있음이 증명되었을 경우, 어떤 집단들끼리 평균의 차이가 유의하게 존재하는지 확인하고자 실시
+    * 다중검정으로 인한 1종 오류의 증가를 막기 위해, 유의수준을 보정하여 family-wise error rate을 0.05로 고정시키는 다양한 방법이 개발됨
+
+    ![](image/p024.png){width=80%}
+    ![](image/p025.png){width=80%}
+
+<br>
+
+* 사후분석방법 (1) 등분산 가정 만족시
+    * Fisher's LSD : `DescTools::PostHocTest(aov_object, method="lsd")`
+    * Tukey's HSD  : `DescTools::PostHocTest(aov_object, method="hsd")` or `TukeyHSD(aov_object)`
+    * Dunnett      : `DescTools::DunnettTest(formula, data)`
+    * Bonferroni   : `DescTools::PostHocTest(aov_object, method="bonferroni")`
+    * Scheffe's method : `DescTools::PostHocTest(aov_object, method="scheffe")`
+    
+<br>
+
+* 사후분석방법 (2) 등분산 가정 불만족시
+    * Games-Howell : `PMCMRplus::gamesHowellTest(aov_object)`
+    * Tamhane's T2 : `PMCMRplus::tamhaneT2Test(aov_object)`
+    * Dunnett T3   : `PMCMRplus::dunnetT3Test(aov_object)`
+
+<br>
+
+* Example
+
+소의 연령에 따른 육류의 셀레늄(selenium) 농도를 비교하고자 자료를 조사한 뒤, 소의 연령은 총 4가지 그룹으로 나누었다. 4가지 연령별로 육류에 존재하는 셀레늄 농도에 차이가 있는지 가설검정을 수행하라. [시트명: selenium]
+
+        * group : 연령그룹 ("A", "B", "C", "D")
+        * selenium : 셀레늄 농도 (ng/mL)
+
+```{r, eval=F}
+dpath <- "C:/Users/User/Desktop/"
+data <- readxl::read_excel(paste0(dpath, "example2.xlsx"), "selenium")
+summary(data)
+
+attach(data)
+
+# 요약통계량
+table(group)
+tapply(selenium, group, mean)
+tapply(selenium, group, sd)
+
+
+# 정규성 검정
+tapply(selenium, group, shapiro.test)
+
+
+# 등분산 검정
+car::leveneTest(selenium ~ group, center=mean)
+
+# one-way ANOVA
+oneway.test(selenium~group, var.equal=F)
+
+
+# Posthoc analysis
+# 등분산 가정 깨짐 / 군별 표본수 다름 -> Games-Howell method 적용
+fit = aov(selenium~factor(group))  # group을 factor화하지 않으면 gamesHowellTest 적용 안됨
+PMCMRplus::gamesHowellTest(fit)
+
+# Boxplot
+library(ggplot2)
+library(RColorBrewer)
+
+ggplot(data) + 
+    geom_boxplot(aes(group, selenium, fill=group), width=0.5) + 
+    guides(fill="none") +
+    scale_fill_brewer(palette="Set1") + 
+    scale_x_discrete(labels=c("A", "B", "C", "D")) +
+    xlab("Age group") + 
+    ylab("Selenium (ng/mL)") + 
+    annotate("text", x=4, y=2700, label="p=0.0021 by Welch's ANOVA", size=4, adj=0.8)
+
+
+# Boxplot with p-value by wilcox.test
+library(ggpubr)
+
+p <- ggboxplot(data=data, x="group", y="selenium", fill="group") + 
+    guides(fill="none") + 
+    scale_fill_brewer(palette="Set1") + 
+    scale_x_discrete(labels=c("A", "B", "C", "D")) +
+    xlab("Age group") + 
+    ylab("Selenium (ppm)")
+
+my_comparison <- list(c("A", "C"), c("A", "D"))
+p + stat_compare_means(comparisons=my_comparison, method="t.test", label.y = c(2800, 3000))
+
+# t.test(selenium ~ group, data=data, subset=data$group %in% c("A", "C"))
+# t.test(selenium ~ group, data=data, subset=data$group %in% c("A", "D"))
+
+
+symnum.args <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))
+p + stat_compare_means(comparisons=my_comparison, method="t.test", label.y = c(2800, 3000), label="p.signif")
+
+detach(data)
+```
+
+<br>
+<br>
+
+
+* **Kruskal-Wallis test**
+    * 관측값 대신에 전체 관측값들 중에서의 순위를 이용하여 순위합의 평균을 비교
+    * H0 : 모집단의 중위수는 모두 같다
+    * H1 : 적어도 한 모집단의 중위수는 다르다. 
+    
+    
+    ![](image/p026.png){width=60%}
+
+<br>
+
+* **Kruskal-Wallis test의 사후분석 (Dunn's method)**
+    * 쌍체 동시 추론을 효과적으로 수행하는 방법
+    * 전체 데이터의 순위를 통해, 평균순위의 그룹별 표준화된 절대 차이를 사용
+ 
+<br>
+
+* `kruskal.test(formula, data)`
+    * formula : (종속변수) ~ (그룹변수) 형태로 지정 
+    * data : 종속변수와 그룹변수가 들어있는 데이터셋명. R 환경에 불러져 있는 종속변수와 그룹변수 벡터를 이용하는 경우 지정 불필요
+
+<br>
+
+* `dunn.test::dunn.test(x, g, method="none")`
+    * x : 종속변수 지정
+    * g : 그룹변수 지정
+    * method : `?p.adjust`함수에서 확인가능한 p-value보정방법 중 선택 가능
+        * "none"       : no adjustment
+        * "bonferroni" : Bonferroni (1936)
+        * "holm"       : Holm (1979)
+        * "hochberg"   : Hochberg (1988)
+        * "BH" or "fdr": Benjamini & Hochberg (1995)
+        * "BY"         : Benjamini & Yekutieli (2001)
+
+<br>
+<br>
+
+* Example
+
+소의 연령에 따른 육류의 셀레늄(selenium) 농도를 비교하고자 자료를 조사한 뒤, 소의 연령은 총 4가지 그룹으로 나누었다. 4가지 연령별로 육류에 존재하는 셀레늄 농도에 차이가 있는지 가설검정을 수행하라. [시트명: selenium]
+
+        * group : 연령그룹 ("A", "B", "C", "D")
+        * selenium : 셀레늄 농도 (ng/mL)
+
+```{r, eval=F}
+data <- readxl::read_excel(paste0(dpath, "example2.xlsx"), "selenium")
+
+attach(data)
+
+# 요약통계량
+table(group)
+tapply(selenium, group, summary)
+
+# Kruskal-Wallis test
+kruskal.test(selenium~group)
+
+# Posthoc comparison (Dunn's method)
+install.packages("dunn.test")
+library(dunn.test)
+dunn.test(selenium, group, method="Bonferroni")
+
+
+# Boxplot with p-value by wilcox.test
+library(ggpubr)
+
+p <- ggboxplot(data=data, x="group", y="selenium", fill="group") + 
+    guides(fill="none") + 
+    scale_fill_brewer(palette="Set1") + 
+    scale_x_discrete(labels=c("A", "B", "C", "D")) +
+    xlab("Age group") + 
+    ylab("Selenium (ppm)")
+
+my_comparison <- list(c("A", "B"), c("A", "C"), c("A", "D"))
+p + stat_compare_means(comparisons=my_comparison, 
+                       method="wilcox.test", 
+                       label.y = c(2800, 3000, 3200), 
+                       label="p.signif",
+                       symnum.args=list(cutpoints=c(0, 0.001, 0.01, 0.05, 1), 
+                                        symbols=c("***", "**", "*", "ns")))
+
+# wilcox.test(selenium ~ group, data=data, subset=data$group %in% c("A", "B"))
+# wilcox.test(selenium ~ group, data=data, subset=data$group %in% c("A", "C"))
+# wilcox.test(selenium ~ group, data=data, subset=data$group %in% c("A", "D"))
+
+detach(data)
+```
+
+<br>
+<br>
+
+
+## **비율 비교**
+
+#### **Chi-square test**
+
+* 카이제곱검정
+    * 카이제곱분포에 기초한 통계적 방법
+    * 관찰빈도와 기대빈도가 의미있게 다른지의 여부를 검증하기 위해 사용되는 방법
+    * 단, 소표본 (총 도수가 20 또는 40 미만) 인 경우
+        * 기대도수 값이 작아져, 기대도수 대비 편차의 제곱합이 상대적으로 커짐
+        * 검정통계량이 작아져서 p-value가 작아짐
+        * 이로 인해 false positive가 많아짐
+        * 검정통계량을 조금 줄여줄 필요가 있음
+    * Yates' correction을 통하여 조금더 정확한 카이제곱의 추정치 산출 가능. 단, 표본수가 큰 경우 의미있는 변화는 없음
+    
+    <br>
+    
+    ![](image/p010.png){width=90%}
+    
+    <br>
+    
+    ![](image/p011.png){width=90%}
+    
+    <br>
+    
+    ![](image/p012.png){width=90%}
+    
+    <br>
+    
+
+* `chisq.test(x, y=NULL, correct=T)`
+    * x : 행에 들어갈 변수 또는 비교하고자 하는 행렬
+    * y : 열에 들어갈 변수. x에 행렬이 지정된 경우 무시됨
+    * correct : Yates' correction 적용 여부
+
+<br>
+<br>
+
+* Example
+
+Ghali, et al (1992) 연구에서는 아동기 횡문근육종(rhabdomyosarcoma, RMS) 연구의 매칭된 데이터를 일반적인 데이터로 간주하여, 산모의 사산과거력과 횡문근육종 발생이 연관이 있는지 카이제곱검정을 수행하시오 [시트명 : rms]. 
+
+    * id : 순번
+    * rms : 횡문근육종 (0=no, 1=yes)
+    * stlbn : 산모의 사산과거력 (0=no, 1=yes)
+    
+```{r, eval=F}
+data <- readxl::read_excel(paste0(dpath, "example2.xlsx"), "rms")
+
+attach(data)
+
+
+# 빈도표
+table(rms, stlbn)
+prop.table(table(rms, stlbn), 2)
+
+x <- table(rms, stlbn)
+y <- round(prop.table(x, 2)*100, 1)
+
+result <- matrix(paste0(x, " (", y, "%)"), nrow=2)
+rownames(result) <- c("Normal", "RMS")
+colnames(result) <- c("None", "Stillbirth")
+
+
+
+# 카이제곱검정
+chisq.test(rms, stlbn)
+chisq.test(x)
+
+
+# Bar plot
+ggplot(data) + 
+    geom_bar(aes(x=stlbn, fill=factor(rms)), position="fill", width=0.6) + 
+    scale_x_continuous(breaks=c(0,1), labels=c("None", "Stillbirth")) +
+    labs(x="", y="Proportion", fill="") + 
+    scale_fill_manual(values=c("lightgray", "firebrick3"), labels=c("Normal", "RMS")) +
+    theme_bw() + 
+    annotate("text", x=c(0, 1), y=c(0.443, 0.808)-0.02, label=c("44.3%", "80.8%"), size=4, col="white") + 
+    ylim(0,1.1) + 
+    annotate("text", x=0.5, y=1.1, label="p=0.001 by chi-squared test", size=4)
+
+detach(data)
+```
+
+<br>
+<br>
+
+#### **Fisher's exact test**
+
+* 카이제곱검정의 타당성
+    * 2x2 분할표의 경우 20<n<40이면서 각 셀의 기대도수가 모두 5 이상이거나, n>40이어야 함
+    * IxJ 분할표의 경우 기대도수가 5이하인 셀이 전체 셀의 20% 이하이고, 1보다 작은 기대도수를 가지는 셀이 없어야 함
+
+<br>
+
+* **Fisher's exact test**
+    * 카이제곱검정의 타당성을 만족하지 못하는 경우 해당 행이나 열을 합하여 pooling 하거나, Fisher's exact test 수행
+    * 예시
+    
+    <br>
+    
+    ![](image/p013.png){width=90%}
+    
+    <br>
+
+* `fisher.test(x, y=NULL, alternative="two.sided")`
+    * x : 행에 들어갈 변수 또는 비교하고자 하는 행렬
+    * y : 열에 들어갈 변수. x에 행렬이 지정된 경우 무시됨
+    * alternative : 가설검정의 방향 ("two.sided", "less", "greater"). 2x2 분할표에서만 적용 가능. 
+    
+<br>
+
+* Example
+
+폐암환자와 정상인에서 아래와 같이 흡연력에 대한 조사결과를 얻었다. 폐암과 흡연 사이에 유의한 연관성이 있는지 검정하시오. 
+    ```{r, echo=F}
+tab <- matrix(c(2, 2, 3, 13), ncol=2, byrow=T)
+tab <- as.data.frame(tab)
+colnames(tab) <- c("폐암환자", "정상인")
+rownames(tab) <- c("흡연", "비흡연")
+tab %>% kbl() %>% 
+kable_styling(bootstrap_options=c("striped", "condensed"),
+                      full_width=F, position="center", font_size=13)
+    ```
+    
+```{r, eval=F}
+# 행렬 입력
+tab <- matrix(c(2,3,2,13), nrow=2)
+
+# 카이제곱검정
+chisq.test(tab)
+
+# Fisher's exact test
+fisher.test(tab)
+```
+
+<br>
+
+#### **McNemar's test**
+
+
+* McNemar's test
+    * 연속형 변수의 분석에서 paired t-test가 있는 것처럼, 범주형 데이터에서도 대응표본에 대한 분석방법 고려 필요
+    * 처리 전후 반응 비교에 대해 McNemar(1947)가 제안한 통계량을 이용
+    
+    
+    <br>
+    
+    ![](image/p014.png){width=95%}
+    
+    <br>
+    
+* `mcnemar.test(x, y=NULL, correct=T)`
+    * x : 행에 들어갈 변수 또는 비교하고자 하는 행렬
+    * y : 열에 들어갈 변수. x에 행렬이 지정된 경우 무시됨
+    * correct : 연속성 보정 여부
+    
+<br>
+
+* Example
+
+결혼한지 3년이 된 남성 60명을 대상으로 결혼 전후의 경제생활의 만족도를 조사한 자료이다. 결혼 전과 결혼 후의 경제생활의 만족도에 있어서 차이가 있는지 알아보자.
+    ```{r, echo=F}
+tab <- matrix(c(23, 18, 7, 12), ncol=2, byrow=T)
+tab <- as.data.frame(tab)
+colnames(tab) <- c("결혼후 만족", "결혼후 불만족")
+rownames(tab) <- c("결혼전 만족", "결혼전 불만족")
+tab %>% kbl() %>% 
+kable_styling(bootstrap_options=c("striped", "condensed"),
+                      full_width=F, position="center", font_size=13)
+    ```
+    
+```{r, eval=F}
+# 행렬 입력
+tab <- matrix(c(23, 18, 7, 12), nrow=2)
+pp <- round(prop.table(tab)*100,1)
+
+result <- matrix(paste0(tab, " (", pp, "%)"), 2)
+
+# McNemar's test
+mcnemar.test(tab)
+```
+
+<br>
+<br>
+
+## **결과 편집2**    
+
+<br>
+
+
+#### **moonBook::mytable()**
+
+* `mytable(x, data, max.ylev=5, digits=1, method=1, catMethod=2, show.all=F, show.total=F)`
+    * x : formula 형태로 작성. 군 ~ 변수1 + 변수2 의 형태로 작성. 데이터셋 내의 모든 변수를 정리하고 싶은 경우 '.' 입력
+    * data : 분석에 활용할 데이터셋 지정. 미지정시 분석 안됨. 
+    * max.ylev : 연속형 변수라도 범주가 5개 미만이면 그룹변수로 인식하여 범주형 자료분석 수행
+    * method : 연속형 변수 검정 방법 선택 (1=모수적 검정, 2=비모수적 검정, 3=정규성검정결과에 따라 판단)
+    * catMethod : 범주형 변수 검정 방법 선택 (0=카이제곱먼저 수행 후 타당성 문제 시 Fisher's test 수행, 1=연속성수정없는 카이제곱검정 수행, 2=연속성수정하는 카이제곱검정 수행, 3=Fisher's test 수행, 4=trend test 수행)
+    * show.all : 모든 통계적 검정 결과 출력
+    * show.total : 그룹변수가 formula에 포함된 경우더라도 TRUE이면 전체 변수의 통계량 출력
+    
+```{r, eval=F}
+library(moonBook)
+
+# 소의 셀레늄 농도 비교
+data <- readxl::read_excel(paste0(dpath, "example2.xlsx"), "selenium")
+mytable(group~selenium, data=data, method=3)
+
+# 산모의 사산과거력에 따른 RMS 비율 비교
+data <- readxl::read_excel(paste0(dpath, "example2.xlsx"), "rms")
+mytable(stlbn~rms, data=data, catMethod=0)
+```
+
+<br>
+<br>
+
+***
+
+**THE END**
+
+***

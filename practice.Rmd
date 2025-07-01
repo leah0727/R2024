@@ -1,0 +1,38 @@
+---
+title: "데이터 분석 보고서 만들기"
+date: '2024-05-20'
+output: 
+    html_document:
+        theme: lumen
+        highlight: espresso
+        toc: yes
+        toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R markdown
+
+마크다운 문법으로 코드를 작성해 HTML로 변환할 수 있다. R markdown을 이용하면 분석 과정과 결과를 자세하게 기술할 수 있어 **재현 가능성**을 갖춘 *데이터 분석 보고서*를 만들 수 있다. 
+
+## 분석 결과
+
+#### 분석
+`moonBook` 패키지의 acs 데이터를 이용하여 아래와 같이 작성하면 코드를 실행한 결과물이 출력된다.
+
+```{r}
+library(moonBook)
+mytable(acs)
+```
+
+* 데이터는 총 `r nrow(acs)`의 개체와 `r ncol(acs)`의 변수로 이루어져 있다.  
+* 이들의 평균 연령은 `r mean(acs$age)`이다. 
+* 이중 남자는 `r table(acs$sex)["Male"]`명, 여자는 `r table(acs$sex)["Female"]`명이다. 
+
+## 그림 삽입
+
+1. moonBook 패키지를 만든 분은 카톨릭대학교병원의 문건웅교수님이시다.
+![문건웅교수님](https://avatars3.githubusercontent.com/u/7410607?s=460&u=5026eec084073e1d65728cfc1779297250f7142e&v=4){width=50%}
+2. moonBook 패키지에 대한 설명서는 [여기](https://cran.r-project.org/web/packages/moonBook/moonBook.pdf)에서 다운 가능하다
