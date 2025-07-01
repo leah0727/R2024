@@ -1,0 +1,503 @@
+---
+title: "Lecture13. Correlation / Linear Regression Analysis"
+output:
+    html_document:
+        theme: simplex
+        highlight: haddock
+        toc: true
+        toc_depth: 5
+        toc_float: true
+        number_sections: false
+draft: false
+editor_options:
+    chunk_output_type: console
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=5, fig.height=3)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+```
+
+<br>
+
+## **연관성 분석**
+
+<br>
+
+```{r, echo=F}
+x1 <- c("연령과 혈압은 어떤 관계가 있을까?", "Correlation analysis", 
+"혈압에 영향을 미치는 인자는 무엇일까?", "Linear regression analysis",
+"고혈압 유무에 영향을 미치는 인자는 무엇일까?", "Logistic regression analysis", 
+"고혈압 발생율에 영향을 미치는 인자는 무엇일까?", "Poisson regression analysis", 
+"고혈압 환자의 생존율에 영향을 미치는 인자는 무엇일까?", "Cox PH regression analysis")
+tab <- matrix(x1, ncol=2, byrow=T)
+tab <- as.data.frame(tab)
+colnames(tab) <- c("질문", "분석방법 예시")
+tab %>% kbl() %>% kable_styling(bootstrap_options=c("striped", "condensed"), full_width=T, position="center", font_size=13)
+```
+
+<br>
+<br>
+
+
+## **상관분석**
+
+<br>
+
+* 상관관계 종류
+    
+    ![](image/p001.png)
+    <br>
+    <br>
+    
+* 상관분석이 부적합한 경우
+
+    ![](image/p002.png)
+    <br>
+    <br>
+    
+* 상관계수 (correlation coefficient)
+
+    ![](image/p003.png)
+    <br>
+    <br>
+    
+* 상관계수 해석 
+    
+    ```{r, echo=F}
+x1 <- c("r>0", "positive correlaion", 
+        "r<0", "negative correlation", 
+        "r=0", "no correlation", 
+        "", "", 
+        "|r| ≤ 0.2", "very weak", 
+        "0.2 < |r| ≤ 0.4", "weak", 
+        "0.4 < |r| ≤ 0.7", "moderate", 
+        "0.7 < |r| ≤ 0.9", "strong", 
+        "0.9 < |r| ≤ 1", "very strong")
+tab <- matrix(x1, ncol=2, byrow=T)
+tab <- as.data.frame(tab)
+colnames(tab) <- c("Correlation coefficient", "해석")
+tab %>% kbl() %>% kable_styling(bootstrap_options=c("striped", "condensed"), full_width=F, position="center", font_size=13)
+```
+<br>
+
+
+* `cor.test(x, y, alternative="two.sided", method="pearson", conf.level=0.95, exact=NULL, continuity=F)`
+        
+    * x, y : 상관계수를 구하고자 하는 numeric vector 2개 각각 지정
+    * alternative : 대립가설 ("two.sided"=상관이 있음 / "greater"=양의 상관이 있음 / "less"=음의 상관이 있음)
+    * method : 검정방법 ("pearson"=피어슨 상관계수 / "kendall"=켄달의 타우 / "spearman"=스피어만 상관계수)
+    * conf.level : Pearson 방식 적용 시 상관계수의 신뢰구간의 신뢰수준. 단 관측치가 4쌍 이상이어야만 계산 가능
+    * exact : TRUE로 설정 시 Kendall 또는 Spearman 방식에서 정확한 p-value를 계산. 동률 존재 시 FALSE로 전환됨
+    * continuity : TRUE 설정 시 Kendall 또는 Spearman 방식에서 연속성 수정 적용. 단, exact=F일 때 적용
+
+<br>
+
+
+* Example
+
+Birth 데이터를 이용하여 신생아의 재태주수(gestwks)와 출생체중(bweight)에 대하여 상관분석을 수행하시오. [데이터명: birth.sav]
+```{r, fig.height=6, fig.width=8, eval=F}
+
+library(haven)
+
+dpath <- "C:/Users/mintb/Desktop/"
+
+birth <- read_sav(paste0(dpath,"birth.sav"))
+head(birth)
+
+attach(birth)
+
+# 정규성 검정
+shapiro.test(gestwks)
+shapiro.test(bweight)
+
+# Spearman's correlation coefficient (rho)
+cor.test(gestwks, bweight, method="spearman", continuity=T)
+
+# Scatterplot
+plot(x = gestwks, 
+     y = bweight, 
+     pch = 19, 
+     col = "navy", 
+     xlab = "Gestation weeks (week)", 
+     ylab = "Birth weight (g)")
+
+text(x=25, y=4200, labels="r=0.547 (p<0.001) by Spearman's method", cex=0.8, font=2, adj=0)
+
+detach(birth)
+```
+<br>
+
+* Result table
+
+![](image/p011.png){width=50%}
+
+<br>
+<br>
+
+## **단순선형회귀분석**
+<br>
+
+* 회귀분석
+    * 유전학자 F. Galton이 아버지와 아들의 신장(height)간에 어떠한 연관성이 있는지를 알아보는 연구에서 이 두 변수간의 관계를 선형모형으로 적합하여 아들의 신장이 평균값으로 회귀(regress)되는 현상을 발견한 것에서부터 유래
+    * 특정한 현상과 그 현상에 영향을 미칠 수 있는 변수들 간의 함수관계를 표현할 수 있는 모형을 이론적 근거나 경험적 판단에 의하여 설정하고 관측된 자료로부터 함수관계를 추정하고 예측하는 통계적인 분석방법
+    
+        ![](image/p005.png){width=70%}
+    
+    <br>
+    
+* 단순선형회귀분석
+    * 목적 : 연속형 종속변수(y)에 대한 독립변수(x)의 영향력을 선형 회귀식으로 추정
+    * 가정
+        - 선형성 (y와 x가 선형관계에 있음) 
+        - 오차항의 정규성 (오차가 정규분포를 따름)
+        - 오차항의 독립성 (오차들이 서로 영향을 받지 않고 독립적)
+        - 오차항의 등분산성 (모든 독립변수의 값에서 오차의 분산은 동일할 것)
+        
+    * 회귀식
+        - y = α + βx + ε
+        - α (intercept, 절편) : x=0일 때 y값들의 평균
+        - β (slope, 기울기) : x가 1단위 증가할 때 y의 평균적인 증가량 / 회귀계수 (regression coefficient)
+        - 회귀모형 (regression model)이라고 부르기도 함
+        - 주로 최소제곱법(Least square method)에 의해 추정됨 (오차항의 제곱합이 최소가 되는 직선)
+    * 오차항(error term, ε)과 잔차 (residual)
+        - 오차항 : 회귀식에서 x에 의해 설명되지 않는 남은 변동
+        - 잔차 : 실제 관측값과 회귀선에 의한 예측값 사이의 차이 / 오차항의 추정치
+        - 가정 확인 시, 오차항의 추정치인 잔차를 이용 
+        
+                    
+            ![](image/p006.png)
+            
+    
+<br>
+                    
+* 단순선형회귀분석의 절차
+
+![](image/p007.png)
+        
+<br>
+<br>
+
+1. 결정계수 $R^2$
+
+    * 추정된 회귀식의 설명력
+    * 회귀식 전체가 설명하는 종속변수 y의 변동 비율
+    * 단순 선형회귀분석에서의 결정계수는 Pearson’s correlation (r) 의 제곱과 동일
+    * $0 ≤ R^2 ≤ 1$ (1에 가까울수록 설명력이 높은 것)
+    * 보통 0.7이상이면 회귀모형의 적합도가 높다고 판단
+    
+    <br>
+    
+2. 회귀식의 유의성
+
+    * 회귀식의 설명비율이 오차에 의한 비율보다 높은가를 검정
+    * 즉, 회귀식이 통계적으로 의미있는가를 확인  (회귀식에 의한 추정이 단순 평균 추정보다 더 정확하다는 의미)
+    * 회귀분석 후 분산분석 표를 통해 확인
+    * 귀무가설 : 회귀식(y = α + βx)으로 y의 변동량을 설명할 수 없다
+    * 대립가설 : 회귀식(y = α + βx)으로 y의 변동량을 설명할 수 있다
+    * p<0.05이면 추정된 회귀식이 통계적으로 유의하다고 판단
+    
+    <br>
+    
+    
+3. 회귀계수($\beta$)의 유의성
+
+    * 종속변수 y 와 독립변수 x가 관련이 있는지 나타냄 (회귀계수를 제시할 때 95% 신뢰구간도 함께 제시)
+    * 단순 회귀분석에서는 회귀식의 유의성 검정과 회귀계수의 유의성 검정이 실제로 같은 결과 보여줌
+    * 다중 회귀분석에서는 회귀식의 유의성 검정 후, 각 독립변수 별로 회귀계수의 유의성을 개별 검정 
+    * 귀무가설 :  x는 y와 관계가 없다 (β = 0)
+    * 대립가설 :  x는 y와 관계가 있다 (β ≠ 0)
+    * p<0.05이면 추정된 회귀계수가 통계적으로 유의하다고 판단
+
+    <br>
+    
+    * 질적변수의 예시 (신생아 출생체중)
+        * 산모의 임신기간, 산모의 흡연상태가 태아의 출생 시 몸무게에 어떠한 영향을 미치는지 조사할 때, 
+    
+            ![](image/p008.png){width=70%}
+            
+            <br>
+            
+        * 산모의 흡연 여부에 대한 해석
+        $$E(Y) = \beta_0 + \beta_1 x_1 + \beta_2 x_2$$
+        $$E(Y) = \beta_0 + \beta_1 x_1                (비흡연자)$$
+        $$E(Y) = \beta_0 + \beta_1 x_1 + \beta_2      (흡연자)$$
+        
+        
+4. 회귀진단
+    
+    * 추정된 회귀식이 기본 가정을 만족하는지 확인하는 절차
+    * 오차항에 대한 가정은 오차항의 추정치인 잔차를 통해 검정
+        1. 선형성 : 산점도로 확인
+        2. 오차항의 정규성 : 잔차의 정규 P-P도표로 확인 (점들이 직선에 가까우면 정규성을 따른다고 판단)
+        3. 오차항의 독립성 : 잔차 산점도 및 Durbin-Watson 통계량으로 확인 (DW가 2 안팎이면 이웃하는 잔차간에 상관성이 없다고 판단 / 0이나 4에 가까우면 독립성 위배)
+        4. 오차항의 등분산성 : 잔차 산점도로 확인 (규칙 없이 퍼져 있으면 독립성과 등분산성 만족한다고 판단)
+        
+        ![](image/p009.png){width=80%} <br><br>
+        
+        
+    * 회귀진단에 이용되는 통계량
+
+    ```{r, echo=F}
+x1 <- c("fitted value",  "(추정된 회귀식에 기초하여) 해당 요인에 대해 예측된 종속변수 값", 
+        "residual","(추정된 회귀식에 기초한) 적합값과 실제 관측값의 차이", 
+        "Standardized residual","잔차를 표준화한 값/절대값이 2보다 큰 경우 이상값 의심", 
+        "Studentized residual",  "해당 값 제외 후 계산한 표준화 잔차 / 절대값이 2보다 큰 경우 이상값 의심", 
+        "outlier", "(다른 관측값들이 모형을 잘 따르는 반면) 모형을 잘 따르지 않는 관측값",
+        "",  "독립변수에서의 이상치 : 다른 독립변수들의 모임에서 벗어난 독립변수 값. 레버리지값으로 판단", 
+        "", "종속변수에서의 이상치 : 추정된 회귀식으로부터 떨어진 종속변수값. 표준화잔차값으로 판단", 
+        "leverage point", "(독립변수의) 평균으로부터 멀리 떨어진 관측값. 회귀계수의 추정에 큰 영향을 줄 수 있음", 
+        "influential point",  "회귀식에 크게 영향을 미치는 관측값. 이 값이 제거되면 회귀계수 추정값이 크게 변함. 영향점은 지렛점과 이상치의 산물로 생각될 수 있음", 
+        "Cook's distance", "해당 관측값이 제외될 때 회귀식이 얼마나 크게 변하는지 측정 (모형에 대한 전반적인 영향도) / 관측값의 leverage와 residual의 정보를 동시에 고려한 척도 / 1보다 크면 영향점 의심")
+
+tab <- matrix(x1, ncol=2, byrow=T)
+tab <- as.data.frame(tab)
+colnames(tab) <- c("Term", "Details")
+
+tab %>% kbl() %>% kable_styling(bootstrap_options=c("striped", "condensed"), full_width=F, position="center", font_size=13)
+```
+<br>
+<br>
+
+* `lm(formula=y~x, data)`
+    * formula : 종속변수 ~ 설명변수 순으로 입력
+    * data : formula에 들어간 변수들이 담겨있는 데이터프레임 지정. 변수가 데이터프레임 바깥에 있는 경우 미지정 가능. 
+
+* `summary(lm_object)` : 선형회귀모형 적합 결과 출력
+* `anova(lm_object)` : 선형회귀모형의 분산분석표 출력
+* `coef(lm_object)` 또는 `summary(lm_object)$coef` : 선형회귀모형의 회귀계수
+* `confint.default(lm_object)` : 선형회귀모형의 신뢰구간
+* `plot.lm(lm_object, which=c(1:3, 5))` : 선형회귀모형의 잔차진단도표
+* `summary(fit)$residual` : 회귀모형의 잔차
+* `residuals(fit)` : 회귀모형의 잔차
+* `rstandard(fit)` : 회귀모형의 표준화 잔차
+* `rstudent(fit)` : 회귀모형의 스튜던트화 잔차
+* `hatvalues(fit)` : 회귀모형의 레버리지
+* `cooks.distance(fit)`: 회귀모형의 쿡의 거리
+<br>
+
+* Example
+
+허리둘레와 복부지방양의 연구 데이터를 이용하여 CT로부터 얻은 복부지방양을 허리둘레를 이용하여 예측할 수 있는 회귀모형에 대한 분석을 수행하시오. [데이터명 : fat.sav]
+
+```{r, eval=F}
+library(haven)
+
+dpath <- "C:/Users/mintb/Desktop/"
+
+data <- read_sav(paste0(dpath,"fat.sav"))
+head(data)
+
+attach(data)
+
+# Correlation checking
+plot(waist, fat)
+cor.test(fat, waist, data=data)
+```
+
+```{r, fig.width=8, fig.height=10, eval=F}
+# Linear regression model
+fit <- lm(fat ~ waist, data=data)
+summary(fit)
+anova(fit)
+coef(fit)
+confint.default(fit)
+
+opar <- par(no.readonly=T)
+
+par(mfrow=c(3,2))
+plot(fit, which=1:6)
+
+par(opar)
+```
+
+```{r, fig.height=5, fig.width=8, eval=F}
+# Scatterplot
+plot(x = waist, 
+     y = fat, 
+     pch = 19, 
+     col = "navy", 
+     xlab = "Waist circumference (cm)", 
+     ylab = "Fat (g)")
+
+abline(fit, lty=3, col="firebrick3")
+
+coef.fit <- round(coef(fit), 2)
+rsquared <- round(summary(fit)$r.squared*100,2)
+eq <- paste0("y = ", coef.fit[1], " + ", coef.fit[2], "x /n(r2=", rsquared, "%)")
+text(x=250, y=68, labels=eq, cex=0.9, font=2, adj=1)
+
+detach(data)
+```
+<br>
+
+* Result table
+
+![](image/p012.png){width=60%}
+
+<br>
+
+## **다중선형회귀분석**
+
+<br>
+
+* 수정된 결정계수 (adjusted $R^2$)
+    * 회귀식 전체가 설명하는 종속변수 y의 변동 비율 계산 시, 독립변수의 수를 고려
+    * 새로 추가된 독립변수의 설명력이 미미한 경우, R2 은 조금 증가할 수 있으나, adj.R2 은 오히려 감소
+    * 0~1 사이 값을 가짐. 1에 가까울수록 설명력이 높은 것. 
+    * 보통 0.7이상이면 회귀모형의 적합도가 높다고 판단
+    
+<br>
+
+* 회귀식의 유의성
+    * Simple linear regression과 동일하게 회귀분석 후 분산분석 표를 통해 확인
+    * p<0.05이면 추정된 회귀식이 통계적으로 유의하다고 판단
+    
+<br>
+
+* Variable selection
+    * Forward selection: 회귀계수의 유의확률이 가장 낮은 변수부터 모형에 넣고 남은 변수 중 모형에 추가하였을 때 유의확률이 가장 낮은 변수를 순서대로 더해 나감 
+    * Backward selectino: 모든 변수를 회귀식에 넣은 상태에서 유의확률이 가장 높은 변수부터 제거
+    * Stepwise selection: 독립변수의 유의확률을 계속적으로 평가하면서 입력, 제거를 반복
+    
+<br>
+
+* 다중공선성 (multicollinearity)
+    * 독립변수들이 너무 밀접한 관련이 있어서 각각의 영향을 보정하여 분석하기 어려운 상태     
+    * 다중 공선성이 있을 경우 추정치의 분산이 증가하여 회귀계수들의 신뢰도 감소
+    * 분산팽창요인 (Variance inflation factor, $VIF = 1/(1-R^2))$
+        * 이 변수에 의해 회귀계수의 분산이 팽창된 정도
+        * 10 이상이면 다중공선성 있다고 판단
+    * 임상적인 의미가 더 중요하거나, 종속변수와의 관련성이 더 높은 변수를 선택 (두 변수의 결합변수를 만들기도 함)
+    
+<br>
+
+* 범주형 변수와 연속형 변수의 교호작용
+    * 모형 
+    $$ E(Y) = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_1 x_2 $$
+    
+    * 흡연자의 모형
+    $$ E(Y) = \beta_0 + \beta_1 x_1 $$
+    
+    * 비흡연자의 모형
+    $$ E(Y) = \beta_0 + \beta_1 x_1 + \beta_2 + \beta_3 x_1 = (\beta_0 + \beta_2) + (\beta_1 + \beta_3) x_1 $$
+    
+    ![](image/p010.png){width=50%}
+    
+
+    
+    
+    <br>
+    
+* `lm(formula=y~x1+x2+...+xk, data)`
+    * formula : 종속변수 ~ 설명변수1+설명변수2+... 순으로 입력
+    * data : formula에 들어간 변수들이 담겨있는 데이터프레임 지정. 변수가 데이터프레임 바깥에 있는 경우 미지정 가능. 
+
+* `car::vif(lm_object)` : 다중공선성 지표인 VIF 출력
+* `step(lm_object, direction="both")` : AIC 기준으로 변수선택. 단, 지정된 변수들 중 결측이 있으면 AIC 비교가 타당하지 않아 수행되지 않음 ("both"=단계선택법 / "backward"=후진선택법 / "forward"=전진선택법)
+
+<br>
+    
+    
+* Example
+
+나이와 치료 방법에 따른 수술의 효과를 검정하고자 한다. 36명의 데이터를 활용하여 다중회귀분석을 수행하라. [데이터명 : op.sav]
+
+```{r, eval=F}
+library(haven)
+
+dpath <- "C:/Users/mintb/Desktop/"
+
+op <- read_sav(paste0(dpath,"op.sav"))
+head(op)
+
+attach(op)
+
+# Assumption checking
+plot(age, y)
+shapiro.test(y)
+cor.test(age, y, data=data)
+
+
+# Multiple linear regression
+fit <- lm(y ~ age + treatment, data=op)
+summary(fit)
+
+# Multiple linear regression with interaction term
+fit2 <- lm(y ~ age*treatment, data=op)
+summary(fit2)
+
+anova(fit, fit2)
+AIC(fit)
+AIC(fit2)
+
+summary(fit)$adj.r.squared
+summary(fit2)$adj.r.squared
+```
+```{r, fig.width=8, fig.height=5, eval=F}
+# Residual plot
+par(mfrow=c(2,2))
+plot(fit2)
+par(opar)
+
+detach(op)
+```
+<br>
+
+* Result table
+
+![](image/p013.png){width=60%}
+
+<br>
+
+***
+
+**THE END**
+
+***
+    
+
+
+
+
+
+    
+
+
+
+
+
+
+        
+            
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
